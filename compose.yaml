@@ -1,0 +1,9 @@
+services:
+  leaderseek-database:
+    container_name: leaderseek-postgres
+    image: postgres:${POSTGRESQL_VERSION}
+    environment:
+      POSTGRES_USER: user1
+      POSTGRES_PASSWORD: pass1
+    ports:
+      - 5432:5432

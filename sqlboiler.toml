@@ -1,0 +1,13 @@
+pkgname   = "repository"
+output    = "repository"
+no-tests  = true
+
+[psql]
+  dbname  = "postgres"
+  host    = "localhost"
+  port    = 5432
+  user    = "user1"
+  pass    = "pass1"
+  schema  = "leaderseek"
+  sslmode = "disable"
+  
