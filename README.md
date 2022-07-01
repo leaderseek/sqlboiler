@@ -3,7 +3,7 @@ Contains the SQL schema definition and associated boilerplate compiled for Go.
 
 ## Setup DB
 - Run `docker compose up`
-- Run `psql -U user1 -f .\sql\schema.sql`
+- Run `psql -d postgres -U user1 -a -f .\sql\schema.sql`
 - Enter password: pass1
 
 ## Setup SQLBoiler
