@@ -402,7 +402,7 @@ func (teamL) LoadTeamMembers(ctx context.Context, e boil.ContextExecutor, singul
 			}
 
 			for _, a := range args {
-				if queries.Equal(a, obj.ID) {
+				if a == obj.ID {
 					continue Outer
 				}
 			}
@@ -460,7 +460,7 @@ func (teamL) LoadTeamMembers(ctx context.Context, e boil.ContextExecutor, singul
 
 	for _, foreign := range resultSlice {
 		for _, local := range slice {
-			if queries.Equal(local.ID, foreign.TeamID) {
+			if local.ID == foreign.TeamID {
 				local.R.TeamMembers = append(local.R.TeamMembers, foreign)
 				if foreign.R == nil {
 					foreign.R = &teamMemberR{}
@@ -482,7 +482,7 @@ func (o *Team) AddTeamMembers(ctx context.Context, exec boil.ContextExecutor, in
 	var err error
 	for _, rel := range related {
 		if insert {
-			queries.Assign(&rel.TeamID, o.ID)
+			rel.TeamID = o.ID
 			if err = rel.Insert(ctx, exec, boil.Infer()); err != nil {
 				return errors.Wrap(err, "failed to insert into foreign table")
 			}
@@ -503,7 +503,7 @@ func (o *Team) AddTeamMembers(ctx context.Context, exec boil.ContextExecutor, in
 				return errors.Wrap(err, "failed to update foreign table")
 			}
 
-			queries.Assign(&rel.TeamID, o.ID)
+			rel.TeamID = o.ID
 		}
 	}
 
@@ -524,80 +524,6 @@ func (o *Team) AddTeamMembers(ctx context.Context, exec boil.ContextExecutor, in
 			rel.R.Team = o
 		}
 	}
-	return nil
-}
-
-// SetTeamMembers removes all previously related items of the
-// team replacing them completely with the passed
-// in related items, optionally inserting them as new records.
-// Sets o.R.Team's TeamMembers accordingly.
-// Replaces o.R.TeamMembers with related.
-// Sets related.R.Team's TeamMembers accordingly.
-func (o *Team) SetTeamMembers(ctx context.Context, exec boil.ContextExecutor, insert bool, related ...*TeamMember) error {
-	query := "update \"leaderseek\".\"team_member\" set \"team_id\" = null where \"team_id\" = $1"
-	values := []interface{}{o.ID}
-	if boil.IsDebug(ctx) {
-		writer := boil.DebugWriterFrom(ctx)
-		fmt.Fprintln(writer, query)
-		fmt.Fprintln(writer, values)
-	}
-	_, err := exec.ExecContext(ctx, query, values...)
-	if err != nil {
-		return errors.Wrap(err, "failed to remove relationships before set")
-	}
-
-	if o.R != nil {
-		for _, rel := range o.R.TeamMembers {
-			queries.SetScanner(&rel.TeamID, nil)
-			if rel.R == nil {
-				continue
-			}
-
-			rel.R.Team = nil
-		}
-		o.R.TeamMembers = nil
-	}
-
-	return o.AddTeamMembers(ctx, exec, insert, related...)
-}
-
-// RemoveTeamMembers relationships from objects passed in.
-// Removes related items from R.TeamMembers (uses pointer comparison, removal does not keep order)
-// Sets related.R.Team.
-func (o *Team) RemoveTeamMembers(ctx context.Context, exec boil.ContextExecutor, related ...*TeamMember) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-	for _, rel := range related {
-		queries.SetScanner(&rel.TeamID, nil)
-		if rel.R != nil {
-			rel.R.Team = nil
-		}
-		if _, err = rel.Update(ctx, exec, boil.Whitelist("team_id")); err != nil {
-			return err
-		}
-	}
-	if o.R == nil {
-		return nil
-	}
-
-	for _, rel := range related {
-		for i, ri := range o.R.TeamMembers {
-			if rel != ri {
-				continue
-			}
-
-			ln := len(o.R.TeamMembers)
-			if ln > 1 && i < ln-1 {
-				o.R.TeamMembers[i] = o.R.TeamMembers[ln-1]
-			}
-			o.R.TeamMembers = o.R.TeamMembers[:ln-1]
-			break
-		}
-	}
-
 	return nil
 }
 

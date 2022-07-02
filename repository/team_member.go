@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/friendsofgo/errors"
-	"github.com/volatiletech/null/v8"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	"github.com/volatiletech/sqlboiler/v4/queries"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
@@ -24,8 +23,8 @@ import (
 
 // TeamMember is an object representing the database table.
 type TeamMember struct {
-	ID     string      `boil:"id" json:"id" toml:"id" yaml:"id"`
-	TeamID null.String `boil:"team_id" json:"team_id,omitempty" toml:"team_id" yaml:"team_id,omitempty"`
+	ID     string `boil:"id" json:"id" toml:"id" yaml:"id"`
+	TeamID string `boil:"team_id" json:"team_id" toml:"team_id" yaml:"team_id"`
 
 	R *teamMemberR `boil:"-" json:"-" toml:"-" yaml:"-"`
 	L teamMemberL  `boil:"-" json:"-" toml:"-" yaml:"-"`
@@ -51,10 +50,10 @@ var TeamMemberTableColumns = struct {
 
 var TeamMemberWhere = struct {
 	ID     whereHelperstring
-	TeamID whereHelpernull_String
+	TeamID whereHelperstring
 }{
 	ID:     whereHelperstring{field: "\"leaderseek\".\"team_member\".\"id\""},
-	TeamID: whereHelpernull_String{field: "\"leaderseek\".\"team_member\".\"team_id\""},
+	TeamID: whereHelperstring{field: "\"leaderseek\".\"team_member\".\"team_id\""},
 }
 
 // TeamMemberRels is where relationship names are stored.
@@ -85,8 +84,8 @@ type teamMemberL struct{}
 
 var (
 	teamMemberAllColumns            = []string{"id", "team_id"}
-	teamMemberColumnsWithoutDefault = []string{"id"}
-	teamMemberColumnsWithDefault    = []string{"team_id"}
+	teamMemberColumnsWithoutDefault = []string{"id", "team_id"}
+	teamMemberColumnsWithDefault    = []string{}
 	teamMemberPrimaryKeyColumns     = []string{"id"}
 	teamMemberGeneratedColumns      = []string{}
 )
@@ -526,9 +525,7 @@ func (teamMemberL) LoadTeam(ctx context.Context, e boil.ContextExecutor, singula
 		if object.R == nil {
 			object.R = &teamMemberR{}
 		}
-		if !queries.IsNil(object.TeamID) {
-			args = append(args, object.TeamID)
-		}
+		args = append(args, object.TeamID)
 
 	} else {
 	Outer:
@@ -538,14 +535,12 @@ func (teamMemberL) LoadTeam(ctx context.Context, e boil.ContextExecutor, singula
 			}
 
 			for _, a := range args {
-				if queries.Equal(a, obj.TeamID) {
+				if a == obj.TeamID {
 					continue Outer
 				}
 			}
 
-			if !queries.IsNil(obj.TeamID) {
-				args = append(args, obj.TeamID)
-			}
+			args = append(args, obj.TeamID)
 
 		}
 	}
@@ -603,7 +598,7 @@ func (teamMemberL) LoadTeam(ctx context.Context, e boil.ContextExecutor, singula
 
 	for _, local := range slice {
 		for _, foreign := range resultSlice {
-			if queries.Equal(local.TeamID, foreign.ID) {
+			if local.TeamID == foreign.ID {
 				local.R.Team = foreign
 				if foreign.R == nil {
 					foreign.R = &teamR{}
@@ -643,7 +638,7 @@ func (teamMemberL) LoadCandidateLeaderSupporters(ctx context.Context, e boil.Con
 			}
 
 			for _, a := range args {
-				if queries.Equal(a, obj.ID) {
+				if a == obj.ID {
 					continue Outer
 				}
 			}
@@ -701,7 +696,7 @@ func (teamMemberL) LoadCandidateLeaderSupporters(ctx context.Context, e boil.Con
 
 	for _, foreign := range resultSlice {
 		for _, local := range slice {
-			if queries.Equal(local.ID, foreign.CandidateID) {
+			if local.ID == foreign.CandidateID {
 				local.R.CandidateLeaderSupporters = append(local.R.CandidateLeaderSupporters, foreign)
 				if foreign.R == nil {
 					foreign.R = &leaderSupporterR{}
@@ -789,7 +784,7 @@ func (o *TeamMember) SetTeam(ctx context.Context, exec boil.ContextExecutor, ins
 		return errors.Wrap(err, "failed to update local table")
 	}
 
-	queries.Assign(&o.TeamID, related.ID)
+	o.TeamID = related.ID
 	if o.R == nil {
 		o.R = &teamMemberR{
 			Team: related,
@@ -809,39 +804,6 @@ func (o *TeamMember) SetTeam(ctx context.Context, exec boil.ContextExecutor, ins
 	return nil
 }
 
-// RemoveTeam relationship.
-// Sets o.R.Team to nil.
-// Removes o from all passed in related items' relationships struct.
-func (o *TeamMember) RemoveTeam(ctx context.Context, exec boil.ContextExecutor, related *Team) error {
-	var err error
-
-	queries.SetScanner(&o.TeamID, nil)
-	if _, err = o.Update(ctx, exec, boil.Whitelist("team_id")); err != nil {
-		return errors.Wrap(err, "failed to update local table")
-	}
-
-	if o.R != nil {
-		o.R.Team = nil
-	}
-	if related == nil || related.R == nil {
-		return nil
-	}
-
-	for i, ri := range related.R.TeamMembers {
-		if queries.Equal(o.TeamID, ri.TeamID) {
-			continue
-		}
-
-		ln := len(related.R.TeamMembers)
-		if ln > 1 && i < ln-1 {
-			related.R.TeamMembers[i] = related.R.TeamMembers[ln-1]
-		}
-		related.R.TeamMembers = related.R.TeamMembers[:ln-1]
-		break
-	}
-	return nil
-}
-
 // AddCandidateLeaderSupporters adds the given related objects to the existing relationships
 // of the team_member, optionally inserting them as new records.
 // Appends related to o.R.CandidateLeaderSupporters.
@@ -850,7 +812,7 @@ func (o *TeamMember) AddCandidateLeaderSupporters(ctx context.Context, exec boil
 	var err error
 	for _, rel := range related {
 		if insert {
-			queries.Assign(&rel.CandidateID, o.ID)
+			rel.CandidateID = o.ID
 			if err = rel.Insert(ctx, exec, boil.Infer()); err != nil {
 				return errors.Wrap(err, "failed to insert into foreign table")
 			}
@@ -871,7 +833,7 @@ func (o *TeamMember) AddCandidateLeaderSupporters(ctx context.Context, exec boil
 				return errors.Wrap(err, "failed to update foreign table")
 			}
 
-			queries.Assign(&rel.CandidateID, o.ID)
+			rel.CandidateID = o.ID
 		}
 	}
 
@@ -892,80 +854,6 @@ func (o *TeamMember) AddCandidateLeaderSupporters(ctx context.Context, exec boil
 			rel.R.Candidate = o
 		}
 	}
-	return nil
-}
-
-// SetCandidateLeaderSupporters removes all previously related items of the
-// team_member replacing them completely with the passed
-// in related items, optionally inserting them as new records.
-// Sets o.R.Candidate's CandidateLeaderSupporters accordingly.
-// Replaces o.R.CandidateLeaderSupporters with related.
-// Sets related.R.Candidate's CandidateLeaderSupporters accordingly.
-func (o *TeamMember) SetCandidateLeaderSupporters(ctx context.Context, exec boil.ContextExecutor, insert bool, related ...*LeaderSupporter) error {
-	query := "update \"leaderseek\".\"leader_supporter\" set \"candidate_id\" = null where \"candidate_id\" = $1"
-	values := []interface{}{o.ID}
-	if boil.IsDebug(ctx) {
-		writer := boil.DebugWriterFrom(ctx)
-		fmt.Fprintln(writer, query)
-		fmt.Fprintln(writer, values)
-	}
-	_, err := exec.ExecContext(ctx, query, values...)
-	if err != nil {
-		return errors.Wrap(err, "failed to remove relationships before set")
-	}
-
-	if o.R != nil {
-		for _, rel := range o.R.CandidateLeaderSupporters {
-			queries.SetScanner(&rel.CandidateID, nil)
-			if rel.R == nil {
-				continue
-			}
-
-			rel.R.Candidate = nil
-		}
-		o.R.CandidateLeaderSupporters = nil
-	}
-
-	return o.AddCandidateLeaderSupporters(ctx, exec, insert, related...)
-}
-
-// RemoveCandidateLeaderSupporters relationships from objects passed in.
-// Removes related items from R.CandidateLeaderSupporters (uses pointer comparison, removal does not keep order)
-// Sets related.R.Candidate.
-func (o *TeamMember) RemoveCandidateLeaderSupporters(ctx context.Context, exec boil.ContextExecutor, related ...*LeaderSupporter) error {
-	if len(related) == 0 {
-		return nil
-	}
-
-	var err error
-	for _, rel := range related {
-		queries.SetScanner(&rel.CandidateID, nil)
-		if rel.R != nil {
-			rel.R.Candidate = nil
-		}
-		if _, err = rel.Update(ctx, exec, boil.Whitelist("candidate_id")); err != nil {
-			return err
-		}
-	}
-	if o.R == nil {
-		return nil
-	}
-
-	for _, rel := range related {
-		for i, ri := range o.R.CandidateLeaderSupporters {
-			if rel != ri {
-				continue
-			}
-
-			ln := len(o.R.CandidateLeaderSupporters)
-			if ln > 1 && i < ln-1 {
-				o.R.CandidateLeaderSupporters[i] = o.R.CandidateLeaderSupporters[ln-1]
-			}
-			o.R.CandidateLeaderSupporters = o.R.CandidateLeaderSupporters[:ln-1]
-			break
-		}
-	}
-
 	return nil
 }
 

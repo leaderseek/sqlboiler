@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/friendsofgo/errors"
-	"github.com/volatiletech/null/v8"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	"github.com/volatiletech/sqlboiler/v4/queries"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
@@ -24,8 +23,8 @@ import (
 
 // LeaderSupporter is an object representing the database table.
 type LeaderSupporter struct {
-	ID          string      `boil:"id" json:"id" toml:"id" yaml:"id"`
-	CandidateID null.String `boil:"candidate_id" json:"candidate_id,omitempty" toml:"candidate_id" yaml:"candidate_id,omitempty"`
+	ID          string `boil:"id" json:"id" toml:"id" yaml:"id"`
+	CandidateID string `boil:"candidate_id" json:"candidate_id" toml:"candidate_id" yaml:"candidate_id"`
 
 	R *leaderSupporterR `boil:"-" json:"-" toml:"-" yaml:"-"`
 	L leaderSupporterL  `boil:"-" json:"-" toml:"-" yaml:"-"`
@@ -72,36 +71,12 @@ func (w whereHelperstring) NIN(slice []string) qm.QueryMod {
 	return qm.WhereNotIn(fmt.Sprintf("%s NOT IN ?", w.field), values...)
 }
 
-type whereHelpernull_String struct{ field string }
-
-func (w whereHelpernull_String) EQ(x null.String) qm.QueryMod {
-	return qmhelper.WhereNullEQ(w.field, false, x)
-}
-func (w whereHelpernull_String) NEQ(x null.String) qm.QueryMod {
-	return qmhelper.WhereNullEQ(w.field, true, x)
-}
-func (w whereHelpernull_String) LT(x null.String) qm.QueryMod {
-	return qmhelper.Where(w.field, qmhelper.LT, x)
-}
-func (w whereHelpernull_String) LTE(x null.String) qm.QueryMod {
-	return qmhelper.Where(w.field, qmhelper.LTE, x)
-}
-func (w whereHelpernull_String) GT(x null.String) qm.QueryMod {
-	return qmhelper.Where(w.field, qmhelper.GT, x)
-}
-func (w whereHelpernull_String) GTE(x null.String) qm.QueryMod {
-	return qmhelper.Where(w.field, qmhelper.GTE, x)
-}
-
-func (w whereHelpernull_String) IsNull() qm.QueryMod    { return qmhelper.WhereIsNull(w.field) }
-func (w whereHelpernull_String) IsNotNull() qm.QueryMod { return qmhelper.WhereIsNotNull(w.field) }
-
 var LeaderSupporterWhere = struct {
 	ID          whereHelperstring
-	CandidateID whereHelpernull_String
+	CandidateID whereHelperstring
 }{
 	ID:          whereHelperstring{field: "\"leaderseek\".\"leader_supporter\".\"id\""},
-	CandidateID: whereHelpernull_String{field: "\"leaderseek\".\"leader_supporter\".\"candidate_id\""},
+	CandidateID: whereHelperstring{field: "\"leaderseek\".\"leader_supporter\".\"candidate_id\""},
 }
 
 // LeaderSupporterRels is where relationship names are stored.
@@ -129,8 +104,8 @@ type leaderSupporterL struct{}
 
 var (
 	leaderSupporterAllColumns            = []string{"id", "candidate_id"}
-	leaderSupporterColumnsWithoutDefault = []string{"id"}
-	leaderSupporterColumnsWithDefault    = []string{"candidate_id"}
+	leaderSupporterColumnsWithoutDefault = []string{"id", "candidate_id"}
+	leaderSupporterColumnsWithDefault    = []string{}
 	leaderSupporterPrimaryKeyColumns     = []string{"id"}
 	leaderSupporterGeneratedColumns      = []string{}
 )
@@ -452,9 +427,7 @@ func (leaderSupporterL) LoadCandidate(ctx context.Context, e boil.ContextExecuto
 		if object.R == nil {
 			object.R = &leaderSupporterR{}
 		}
-		if !queries.IsNil(object.CandidateID) {
-			args = append(args, object.CandidateID)
-		}
+		args = append(args, object.CandidateID)
 
 	} else {
 	Outer:
@@ -464,14 +437,12 @@ func (leaderSupporterL) LoadCandidate(ctx context.Context, e boil.ContextExecuto
 			}
 
 			for _, a := range args {
-				if queries.Equal(a, obj.CandidateID) {
+				if a == obj.CandidateID {
 					continue Outer
 				}
 			}
 
-			if !queries.IsNil(obj.CandidateID) {
-				args = append(args, obj.CandidateID)
-			}
+			args = append(args, obj.CandidateID)
 
 		}
 	}
@@ -529,7 +500,7 @@ func (leaderSupporterL) LoadCandidate(ctx context.Context, e boil.ContextExecuto
 
 	for _, local := range slice {
 		for _, foreign := range resultSlice {
-			if queries.Equal(local.CandidateID, foreign.ID) {
+			if local.CandidateID == foreign.ID {
 				local.R.Candidate = foreign
 				if foreign.R == nil {
 					foreign.R = &teamMemberR{}
@@ -674,7 +645,7 @@ func (o *LeaderSupporter) SetCandidate(ctx context.Context, exec boil.ContextExe
 		return errors.Wrap(err, "failed to update local table")
 	}
 
-	queries.Assign(&o.CandidateID, related.ID)
+	o.CandidateID = related.ID
 	if o.R == nil {
 		o.R = &leaderSupporterR{
 			Candidate: related,
@@ -691,39 +662,6 @@ func (o *LeaderSupporter) SetCandidate(ctx context.Context, exec boil.ContextExe
 		related.R.CandidateLeaderSupporters = append(related.R.CandidateLeaderSupporters, o)
 	}
 
-	return nil
-}
-
-// RemoveCandidate relationship.
-// Sets o.R.Candidate to nil.
-// Removes o from all passed in related items' relationships struct.
-func (o *LeaderSupporter) RemoveCandidate(ctx context.Context, exec boil.ContextExecutor, related *TeamMember) error {
-	var err error
-
-	queries.SetScanner(&o.CandidateID, nil)
-	if _, err = o.Update(ctx, exec, boil.Whitelist("candidate_id")); err != nil {
-		return errors.Wrap(err, "failed to update local table")
-	}
-
-	if o.R != nil {
-		o.R.Candidate = nil
-	}
-	if related == nil || related.R == nil {
-		return nil
-	}
-
-	for i, ri := range related.R.CandidateLeaderSupporters {
-		if queries.Equal(o.CandidateID, ri.CandidateID) {
-			continue
-		}
-
-		ln := len(related.R.CandidateLeaderSupporters)
-		if ln > 1 && i < ln-1 {
-			related.R.CandidateLeaderSupporters[i] = related.R.CandidateLeaderSupporters[ln-1]
-		}
-		related.R.CandidateLeaderSupporters = related.R.CandidateLeaderSupporters[:ln-1]
-		break
-	}
 	return nil
 }
 

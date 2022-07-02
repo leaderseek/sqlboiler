@@ -15,12 +15,12 @@ CREATE TABLE team (
 
 CREATE TABLE team_member (
     id UUID PRIMARY KEY REFERENCES player,
-    team_id UUID REFERENCES team
+    team_id UUID NOT NULL REFERENCES team
 )
 
 CREATE TABLE leader_supporter (
     id UUID PRIMARY KEY REFERENCES player,
-    candidate_id UUID REFERENCES team_member
+    candidate_id UUID NOT NULL REFERENCES team_member
 )
 
 CREATE VIEW leader_supporter_count AS (
